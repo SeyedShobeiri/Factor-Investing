@@ -83,7 +83,27 @@ knitr::kable(head(FF_factors), booktabs = TRUE,
 
 
 
-
+nb_factors <- 5 # Number of factors
+data_FM <- left_join(data_ml %>% # Join the 2 datasets
+                       dplyr::select(date, stock_id, R1M_Usd) %>% # (with returns...
+                       filter(stock_id %in% stock_ids_short), # ... over some stocks)
+                     FF_factors,
+                     by = "date") %>%
+  mutate(R1M_Usd = lag(R1M_Usd)) %>% # Lag returns
+  na.omit() %>% # Remove missing points
+  spread(key = stock_id, value = R1M_Usd)
+models <- lapply(paste0("`", stock_ids_short,
+                        '` ~ MKT_RF + SMB + HML + RMW + CMA'),
+                 function(f){ lm(as.formula(f), data = data_FM, # Call lm(.)
+                                 na.action="na.exclude") %>%
+                     summary() %>% # Gather the output
+                     "$"(coef) %>% # Keep only coefs
+                     data.frame() %>% # Convert to dataframe
+                     dplyr::select(Estimate)} # Keep the estimates
+)
+betas <- matrix(unlist(models), ncol = nb_factors + 1, byrow = T) %>% # Extract the betas
+  data.frame(row.names = stock_ids_short) # Format: row names
+colnames(betas) <- c("Constant", "MKT_RF", "SMB", "HML", "RMW", "CMA")
 
 
 
