@@ -105,7 +105,14 @@ betas <- matrix(unlist(models), ncol = nb_factors + 1, byrow = T) %>% # Extract 
   data.frame(row.names = stock_ids_short) # Format: row names
 colnames(betas) <- c("Constant", "MKT_RF", "SMB", "HML", "RMW", "CMA")
 
-
+loadings <- betas %>% # Start from loadings (betas)
+  dplyr::select(-Constant) %>% # Remove constant
+  data.frame() # Convert to dataframe
+ret <- returns %>% # Start from returns
+  dplyr::select(-date) %>% # Keep the returns only
+  data.frame(row.names = returns$date) %>% # Set row names
+  t() # Transpose
+FM_data <- cbind(loadings, ret)
 
 
 
