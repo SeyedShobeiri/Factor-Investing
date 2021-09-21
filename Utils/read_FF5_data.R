@@ -1,5 +1,7 @@
 library(quantmod)
 library(xtable)
+library(tidyverse)
+library(lubridate)
 
 read_FF5_data = function(begin,end){
   # reads and clean Fama French 5 factors data
