@@ -165,6 +165,48 @@ data_ml %>%
   
 
 
+data_ml %>%
+  dplyr::select(c(features_short, "R1M_Usd", "date")) %>% # Keep few features, label & date
+  group_by(date) %>% # Group: dates!
+  summarise_all(funs(cor(.,R1M_Usd))) %>% # Compute correlations
+  dplyr::select(-R1M_Usd) %>% # Remove label
+  gather(key = Predictor, value = value, -date) %>% # Put in tidy format
+  ggplot(aes(x = Predictor, y = value, color = Predictor)) + # Plot
+  geom_boxplot(outlier.colour = "black") + coord_flip() +
+  theme(aspect.ratio = 0.6) + xlab(element_blank())
+
+
+
+data_ml %>% 
+  ggplot(aes(y=R1M_Usd)) +
+  geom_smooth(aes(x=Mkt_Cap_12M_Usd,color = "Market Cap")) +
+  geom_smooth(aes(x=Vol1Y_Usd,color="Volatility")) + 
+  scale_color_manual(values = c("#F87E1F", "#0570EA")) +
+  coord_fixed(10) +
+  labs(color = "Predictor") + xlab(element_blank())
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
