@@ -1,6 +1,6 @@
 library(tidyverse)
 library(lubridate)
-load("data_ml.RData")
+load("Datasets/data_ml.RData")
 
 
 data_ml <- data_ml %>% filter(date > "1999-12-30",
@@ -117,15 +117,52 @@ FM_data <- cbind(loadings, ret)
 
 
 
+data_ml %>%
+  group_by(date) %>%
+  mutate(growth = Pb > median(Pb)) %>% # Creates the cap sort
+  ungroup() %>% # Ungroup
+  mutate(year = lubridate::year(date)) %>% # Creates a year variable
+  group_by(year, growth) %>% # Analyze by year & cap
+  summarize(avg_return = mean(R12M_Usd)) %>% # Compute average return
+  ggplot(aes(x = year, y = avg_return, fill = growth)) + # Plot!
+  geom_col(position = "dodge") + # Bars side-to-side
+  theme(legend.position = c(0.8, 0.2)) + # Legend location
+  theme(legend.title=element_blank()) + # x/y aspect ratio
+  scale_fill_manual(values=c("#F87E1F", "#0570EA"), name = "", # Colors
+                    labels=c("Small", "Large")) +
+  ylab("Average returns") + theme(legend.text=element_text(size=9))
 
 
+returns_m <- data_ml %>%
+    group_by(date) %>%
+    mutate(growth = Pb > median(Pb)) %>% # Creates the cap sort
+    mutate(year = lubridate::year(date)) %>% # Creates a year variable
+    group_by(year, growth) %>% # Analyze by year & cap
+    summarize(avg_return = mean(R12M_Usd)) %>% # Compute average return
+    spread(key=growth,value=avg_return) %>% 
+    ungroup()
+
+colnames(returns_m)[2:3] <- c("value","growth")
+returns_m %>% 
+  mutate(value = cumprod(1+value),growth = cumprod(1+growth)) %>% 
+  gather(key = portfolio, value = value,-year) %>% 
+  ggplot(aes(x=year,y=value,color=portfolio)) + geom_line() + theme(legend.position = c(0.7,0.8))
 
 
-
-
-
-
-
+data_ml %>% 
+  mutate(small = Mkt_Cap_6M_Usd <= 0.25,
+         medium = Mkt_Cap_6M_Usd > 0.25 & Mkt_Cap_6M_Usd <= 0.5,
+         large = Mkt_Cap_6M_Usd > 0.5 & Mkt_Cap_6M_Usd <= 0.75,
+         xl = Mkt_Cap_6M_Usd > 0.75,
+         year = lubridate::year(date)) %>%
+  group_by(year) %>%
+  summarize(small = mean(small * R1M_Usd), # Compute avg returns
+            medium = mean(medium * R1M_Usd),
+            large = mean(large * R1M_Usd),
+            xl = mean(xl * R1M_Usd)) %>%
+  gather(key = size,value = return, -year) %>% 
+  ggplot(aes(x = year, y = return, fill = size)) + geom_col(position = "dodge")
+  
 
 
 
