@@ -186,6 +186,132 @@ data_ml %>%
   labs(color = "Predictor") + xlab(element_blank())
 
 
+data_ml %>% # From dataset:
+  dplyr::select(c("stock_id", features)) %>% # Keep ids & features
+  gather(key = feature, value = value, -stock_id) %>% # Put in tidy format
+  group_by(stock_id, feature) %>% # Group
+  summarize(acf = acf(value, lag.max = 1, plot = FALSE)$acf[2])
+
+
+
+Length <- 100
+x <- exp(sin(1:Length))
+data <- data.frame(index=1:Length,x = x)
+ggplot(data,aes(x = index, y = x)) + geom_bar(stat = "identity")
+
+
+norm_unif <- function(v){
+  v <- v %>% as.matrix()
+  return(ecdf(v)(v))
+}
+
+norm_0_1 <- function(v){
+  return((v-min(v))/(max(v)-min(v)))
+}
+
+data_norm <- data.frame(
+  index = 1:Length,
+  original = x,
+  standard = (x-mean(x))/sd(x),
+  norm_0_1 = norm_0_1(x),
+  unif = norm_unif(x)) %>% 
+  gather(key = Type, value = value, -index)
+
+ggplot(data_norm,aes(x=index,y=value,fill=Type)) + geom_bar(stat = "identity") + facet_grid(Type~.)
+ggplot(data_norm,aes(x=value,fill=Type)) + geom_histogram(position="dodge") + facet_grid(Type~.)
+
+
+
+firm <- c(rep(1,3), rep(2,3), rep(3,3)) # Firms (3 lines for each)
+date <- rep(c(1,2,3),3) # Dates
+cap <- c(10, 50, 100, # Market capitalization
+         15, 10, 15,
+         200, 120, 80)
+return <- c(0.06, 0.01, -0.06, # Return values
+            -0.03, 0.00, 0.02,
+            -0.04, -0.02,0.00)
+data_toy <- data.frame(firm, date, cap, return) # Aggregation of data
+data_toy <- data_toy %>% # Transformation of data
+  group_by(date) %>%
+  mutate(cap_0_1 = norm_0_1(cap), cap_u = norm_unif(cap))
+
+
+lm(return ~ cap_0_1,data=data_toy) %>% broom::tidy() %>% knitr::kable(caption = 'Regression output when the independent var. comes from min-max rescaling', booktabs = T)
+lm(return ~ cap_u,data=data_toy) %>% broom::tidy() %>% knitr::kable(caption = 'Regression output when the independent var. comes from min-max rescaling', booktabs = T)
+
+
+getSymbols.FRED("BAMLC0A0CM",env = ".GlobalEnv",return.class = "xts")
+cred_spread <- fortify(BAMLC0A0CM)
+colnames(cred_spread) <- c("date","spread")
+cred_spread <- cred_spread %>% 
+  full_join(data_ml %>% dplyr::select(date),by="date") %>% mutate(spread = na.locf(spread))
+cred_spread <- cred_spread[!duplicated(cred_spread),]
+
+data_cond <- data_ml %>% dplyr::select(c("stock_id","date",features_short))
+names_cred_spread <- paste0(features_short,"_cred_spread")
+feat_cred_spread <- data_cond %>% dplyr::select(features_short)
+cred_spread <- data_ml %>% 
+  dplyr::select(date) %>%
+  left_join(cred_spread,by="date")
+feat_cred_spread <- feat_cred_spread * 
+  matrix(cred_spread$spread,length(cred_spread$spread),
+         length(features_short))
+colnames(feat_cred_spread) <- names_cred_spread
+data_cond <- bind_cols(data_cond,feat_cred_spread)
+data_cond %>% ggplot(aes(x=Eps_cred_spread)) + geom_histogram()
+  
+
+data_cond <- data_cond %>% 
+  group_by(date) %>% 
+  mutate_at(names_cred_spread,norm_unif)
+data_cond %>% ggplot(aes(x=Eps_cred_spread)) + geom_histogram(bins=100)
+
+
+getSymbols.FRED("VIXCLS",
+                env = ".GlobalEnv",
+                return.class = "xts")
+
+vix = fortify(VIXCLS)
+colnames(vix) <- c("date","vix")
+vix <- vix %>% 
+  full_join(data_ml %>% dplyr::select(date),by="date") %>% 
+  mutate(vix=na.locf(vix))
+
+vix <- vix[!duplicated(vix),]
+vix <- data_ml %>% 
+  dplyr::select(date) %>% 
+  left_join(vix,by="date")
+
+
+
+delta <- 0.5
+vix_bar <- median(vix$vix)
+data_vix <- data_ml %>% 
+  dplyr::select(stock_id,date,R1M_Usd) %>% 
+  mutate(r_minus = (-0.02) * exp(-delta*(vix$vix - vix_bar)),
+         r_plus = 0.02 * exp(delta*(vix$vix-vix_bar)))
+
+data_vix <- data_vix %>% 
+  mutate(R1M_Usd_Cvix = if_else(R1M_Usd < r_minus, -1,
+                                if_else(R1M_Usd > r_plus,1,0)),
+         R1M_Usd_Cvix = as.factor(R1M_Usd_Cvix))
+
+data_vix %>% 
+  mutate(year = year(date)) %>% 
+  group_by(year,R1M_Usd_Cvix) %>% 
+  summarize(nb = n()) %>% 
+  ggplot(aes(x=year,y=nb,fill=R1M_Usd_Cvix)) + geom_col()
+
+
+data_ml %>% ggplot(aes(x=R12M_Usd)) + geom_histogram()
+data_ml %>% filter(stock_id == 683,year(date) == 2009) %>% dplyr::select(date,Vol1Y_Usd)
+
+
+
+
+
+
+
 
 
 
