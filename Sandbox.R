@@ -306,11 +306,21 @@ data_vix %>%
 data_ml %>% ggplot(aes(x=R12M_Usd)) + geom_histogram()
 data_ml %>% filter(stock_id == 683,year(date) == 2009) %>% dplyr::select(date,Vol1Y_Usd)
 
+library(glmnet)
+y_penalized = data_ml$R1M_Usd
+x_penalized = data_ml %>% 
+  dplyr::select(all_of(features)) %>% as.matrix()
+fit_lasso <- glmnet(x_penalized,y_penalized,alpha=1)
 
 
-
-
-
+lasso_coef <- summary(fit_lasso$beta)
+lambda <- fit_lasso$lambda
+lasso_coef$Lambda <- lambda[lasso_coef$j]
+lasso_coef$Feature <- features[lasso_coef$i] %>% as.factor()
+lasso_coef[1:120,] %>% 
+  ggplot(aes(x=Lambda,y=x,color=Feature)) + 
+  geom_line() + coord_fixed(0.25) + ylab("beta") +
+  theme(legend.text = element_text(size = 7))
 
 
 
