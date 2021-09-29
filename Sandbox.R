@@ -32,7 +32,7 @@ stock_ids_short = stock_ids[which(stock_days$nb == max(stock_days$nb))]
 
 returns = data_ml %>% 
   filter(stock_id %in% stock_ids_short) %>% 
-  dplyr::select(date,stock_id,R1M_Usd) %>% 
+  dplyr::select(stock_id,R1M_Usd,date) %>% 
   spread(key = stock_id,value = R1M_Usd)  # can use pivot_wider instead of spread as well
 
 
@@ -323,32 +323,87 @@ lasso_coef[1:120,] %>%
   theme(legend.text = element_text(size = 7))
 
 
+y_penalized = data_ml$R1M_Usd
+x_penalized = data_ml %>% 
+  dplyr::select(all_of(features)) %>% as.matrix()
+fit_ridge <- glmnet(x_penalized,y_penalized,alpha=0.05)
+
+
+ridge_coef <- summary(fit_ridge$beta)
+lambda <- fit_ridge$lambda
+ridge_coef$Lambda <- lambda[ridge_coef$j]
+ridge_coef$Feature <- features[ridge_coef$i] %>% as.factor()
+ridge_coef %>% 
+  filter(Feature %in% levels(droplevels(ridge_coef$Feature[1:20]))) %>% 
+  ggplot(aes(x=Lambda,y=x,color=Feature)) + ylab("beta") + geom_line() + scale_x_log10() + coord_fixed(45) + theme(legend.text = element_text(size=7))
 
 
 
+t_oos <- returns$date[returns$date > separation_date] %>% unique() %>% as.Date(origin="1970-01-01")
+Tt <- length(t_oos)
+nb_port <- 3
+portf_weights <- array(0,dim = c(Tt,nb_port,ncol(returns)-1))
+portf_returns <- matrix(0,nrow=Tt,ncol=nb_port)
 
 
+weights_sparsehedge <- function(returns,alpha,lambda){
+  w <- 0
+  for(i in 1:ncol(returns)){
+    y <- returns[,i]
+    x <- returns[,-i]
+    fit <- glmnet(x,y,family="gaussian",alpha=alpha,lambda=lambda)
+    err <- y - predict(fit,x)
+    w[i] <- (1-sum(fit$beta))/var(err)
+  }
+  return(w/sum(w))
+}
+
+weights_multi <- function(returns,j,alpha,lambda,delta=0.01){
+  N <- ncol(returns)
+  if(j == 1){
+    return(rep(1/N,N))
+  }
+  if(j==2){
+    sigma <- cov(returns) + delta * diag(N)
+    w <- solve(sigma) %*% rep(1,N)
+    return(w/sum(w))
+  }
+  if(j==3){
+    w <- weights_sparsehedge(returns,alpha,lambda)
+  }
+}
 
 
+for(t in 1:length(t_oos)){
+  temp_data <- returns %>% 
+    filter(date < t_oos[t]) %>% 
+    dplyr::select(-date) %>% 
+    as.matrix()
+  
+  realised_returns <- returns %>% 
+    filter(date == t_oos[t]) %>% 
+    dplyr::select(-date)
+  
+  for(j in 1:nb_port){
+    portf_weights[t,j,] <- weights_multi(temp_data,j,0.1,0.1)
+    portf_returns[t,j] <- sum(portf_weights[t,j,] * realised_returns)
+  }
+}
 
 
+colnames(portf_returns) <- c("EW","MV","Sparse")
+apply(portf_returns,2,sd)
 
 
+library(glmnet)
+y_penalized_train = training_sample$R1M_Usd
+x_penalized_train = training_sample %>% dplyr::select(all_of(features)) %>% as.matrix()
+fit_pen_pred = glmnet(x_penalized_train,y_penalized_train,alpha=1,lambda=0.1)
 
+x_penalized_test = testing_sample %>% dplyr::select(all_of(features)) %>% as.matrix()
+mean((predict(fit_pen_pred,x_penalized_test) - testing_sample$R1M_Usd)^2)
 
-
-
-
-
-
-
-
-
-
-
-
-
-
+mean(predict(fit_pen_pred,x_penalized_test) * testing_sample$R1M_Usd > 0)
 
 
 
