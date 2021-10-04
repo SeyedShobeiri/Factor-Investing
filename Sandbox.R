@@ -407,3 +407,76 @@ mean(predict(fit_pen_pred,x_penalized_test) * testing_sample$R1M_Usd > 0)
 
 
 
+library(rpart)
+library(rpart.plot)
+formula <- paste("R1M_Usd ~",paste(features,collapse = "+"))
+formula <- as.formula(formula)
+
+fit_tree <- rpart(formula,data = data_ml,minbucket = 3500, minsplit = 8000,cp = 0.0000001,maxdepth=5)
+rpart.plot(fit_tree)
+
+predict(fit_tree,data_ml[1:6,])
+
+data_ml %>% ggplot() +
+  stat_smooth(aes(x = Mkt_Cap_3M_Usd, y = R1M_Usd, color = "Market Cap"), se = FALSE) +
+  stat_smooth(aes(x = Pb, y = R1M_Usd, color = "Price-to-Book"), se = FALSE) +
+  stat_smooth(aes(x = Advt_3M_Usd, y = R1M_Usd, color = "Volume"), se = FALSE) +
+  xlab("Predictor") + coord_fixed(11) + labs(color = "Characteristic")
+
+
+mean((predict(fit_tree,testing_sample) - testing_sample$R1M_Usd)^2)
+mean(predict(fit_tree,testing_sample) * testing_sample$R1M_Usd > 0)
+
+
+library(randomForest)
+fit_RF <- randomForest(formula,
+                       data = training_sample,
+                       sampsize = 10000,
+                       replace=FALSE,
+                       nodesize = 250,
+                       ntree = 40,
+                       mtry = 30
+                       )
+predict(fit_RF,testing_sample[1:5,])
+mean((predict(fit_RF,testing_sample) - testing_sample$R1M_Usd)^2)
+mean(predict(fit_RF,testing_sample) * testing_sample$R1M_Usd>0)
+
+
+
+formula_C <- paste("R1M_Usd_C ~",paste(features,collapse = " + "))
+formula_C <- as.formula(formula_C)
+fit_RF <- randomForest(formula_C,
+                       data = training_sample,
+                       sampsize = 20000,
+                       replace=FALSE,
+                       nodesize = 250,
+                       ntree = 40,
+                       mtry = 30
+)
+predict(fit_RF,testing_sample[1:5,])
+mean(predict(fit_RF,testing_sample) == testing_sample$R1M_Usd_C)
+
+
+library(fastAdaboost)
+subsample <- (1:52000)*4
+fit_adaboost_C <- adaboost(formula_C,
+                           data = data.fram(training_sample[subsample,]),
+                           nIter = 3)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
