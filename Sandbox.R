@@ -460,11 +460,11 @@ mean(predict(fit_RF,testing_sample) == testing_sample$R1M_Usd_C)
 library(fastAdaboost)
 subsample <- (1:52000)*4
 fit_adaboost_C <- adaboost(formula_C,
-                           data = data.fram(training_sample[subsample,]),
+                           data = data.frame(training_sample[subsample,]),
                            nIter = 3)
 
 
-
+mean(testing_sample$R1M_Usd_C == predict(fit_adaboost_C,testing_sample)$class)
 
 
 
