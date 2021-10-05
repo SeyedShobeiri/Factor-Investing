@@ -467,6 +467,85 @@ fit_adaboost_C <- adaboost(formula_C,
 mean(testing_sample$R1M_Usd_C == predict(fit_adaboost_C,testing_sample)$class)
 
 
+library(xgboost)
+train_features_xgb <- training_sample %>% 
+  filter(R1M_Usd < quantile(R1M_Usd,0.2) | R1M_Usd > quantile(R1M_Usd,0.8)) %>% dplyr::select(all_of(features_short)) %>% as.matrix()
+
+train_label_xgb <- training_sample %>%
+  filter(R1M_Usd < quantile(R1M_Usd, 0.2) | R1M_Usd > quantile(R1M_Usd, 0.8)) %>% dplyr::select(R1M_Usd) %>% as.matrix()
+inst_weights <- runif(nrow(train_features_xgb))
+inst_weights <- inst_weights / sum(inst_weights)
+train_matrix_xgb <- xgb.DMatrix(data = train_features_xgb,label = train_label_xgb,weight = inst_weights) ### Make it very easy
+
+mono_const <- rep(0,length(features))
+mono_const[which(features == "Mkt_Cap_12M_Usd")] <- -1
+mono_const[which(features == "Pb")] <- -1
+mono_const[which(features == "Mom_11M_Usd")] <- 1
+
+fit_xgb <- xgb.train(data = train_matrix_xgb,
+                     eta = 0.5,
+                     objective = "reg:linear",
+                     max_depth = 5,
+                     subsample = 0.8,
+                     colsample_bytree = 0.7,
+                     lambda = 1,
+                     gamma = 0.1,
+                     nrounds = 60,
+                     monotone_constraints = mono_const,
+                     rate_drop = 0.1,
+                     verbose = 0
+                     )
+
+
+xgb_test <- testing_sample %>% dplyr::select(all_of(features_short)) %>% as.matrix()
+mean((predict(fit_xgb,xgb_test) - testing_sample$R1M_Usd)^2)
+mean(predict(fit_xgb,xgb_test) * testing_sample$R1M_Usd > 0)
+
+
+train_label_C <- training_sample %>%
+  filter(R1M_Usd < quantile(R1M_Usd, 0.2) | R1M_Usd > quantile(R1M_Usd, 0.8)) %>% dplyr::select(R1M_Usd_C)
+train_matrix_C <- xgb.DMatrix(data = train_features_xgb,label = as.numeric(train_label_C == "TRUE"))
+
+fit_xgb_C <- xgb.train(data = train_matrix_C, 
+                       eta = 0.8, 
+                       objective = "multi:softmax", 
+                       num_class = 2, 
+                       max_depth = 4, 
+                       nrounds = 10, 
+                       verbose = 0 
+)
+
+mean(predict(fit_xgb_C,xgb_test) + 1 == as.numeric(testing_sample$R1M_Usd_C))
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
